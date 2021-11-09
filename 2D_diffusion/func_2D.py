@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy import special
 import copy
+from scipy.interpolate import griddata
 
 def Legendre_deriv(Q, x):
     
@@ -940,6 +941,18 @@ def exact_solution(coord,Np,icase,time):
             qe[i] = cos(pi*x)*cos(pi*y)*exp(-2*pi**2*time)
             gradq[i,0] = -pi*sin(pi*x)*cos(pi*y)*exp(-2*pi**2*time)
             gradq[i,1] = -pi*cos(pi*x)*sin(pi*y)*exp(-2*pi**2*time)
+            
+    elif(icase == 4):
+        
+        qe = zeros(Np)
+        
+        for i in range(Np):
+            x = coord[i,0]
+            y = coord[i,1]
+            
+            qe[i] = 1.0/(4.0*time+1.0)*exp(-(x-0.5)**2/(0.01*(4.0*time+1.0)))*exp(-(y-0.5)**2/(0.01*(4.0*time+1.0)))
+            gradq[i,0] = (-2*(x-0.5)/(0.01*(4.0*time+1.0)))*qe[i]
+            gradq[i,1] = (-2*(y-0.5)/(0.01*(4.0*time+1.0)))*qe[i]
         
     return qe,gradq
 
@@ -960,10 +973,30 @@ def apply_Dirichlet_BC_vec(Rvector,bsido,qe,Nbound):
 
     return Rvector
 
+def apply_Dirichlet_BC_vec1(Rvector,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside):
+    
+    for n in range(Nside):
+        
+        el = int(psideh[n,2])
+        iloc = int(psideh[n,0])
+        er = int(psideh[n,3])
+        
+        #if(er == -3):
+        for i in range(Q+1):
+
+            il = int(imapl[i,iloc,0])
+            jl = int(imapl[i,iloc,1])
+            ip = int(intma[el,il,jl])
+
+            Rvector[ip] = qe[ip]
+
+    return Rvector
 
 def apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside):
     
     B = zeros(Np)
+    
+    #deri = zeros((2,Np))
 
     for n in range(Nside):
         
@@ -979,16 +1012,12 @@ def apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,
                 nxl = nx[n,i]
                 nyl = ny[n,i]
                 
-                
-                
                 il = int(imapl[i,iloc,0])
                 jl = int(imapl[i,iloc,1])
                 ip = int(intma[el,il,jl])
 
                 ndp = nxl*gradq[ip,0] + nyl*gradq[ip,1]
                 
-                #print(el, iloc, nxl, nyl, ndp, wq)
-                #print(ndp, wq)
                 B[ip] += wq*ndp
                 
     B = Mmatrix_inv@B
@@ -1030,7 +1059,7 @@ def apply_Neumann_BC1(Mmatrix_inv,nx,ny,intma,bsido,jac_side,imapl,psideh,gradq,
                     B[ip] = wq*ndp
             
                 
-    B = Mmatrix_inv@B
+    #B = Mmatrix_inv@B
     
     return B
 
@@ -1200,11 +1229,12 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
     dx = coord[1,0] - coord[0,0]
     
     # time stuff
+    u = 1
     Nx = Nelx*N + 1
     dx = (bx-ax)/(Nx)
-    dt_est = cfl*dx**2/c
-    
-    ntime = int(floor(Tfinal/dt_est)+1)
+    dt_est = cfl*dx**2/abs(u)
+    #dt_est = 0.005
+    ntime = int(floor(Tfinal/dt_est))
     dt = Tfinal/ntime
 
     print("N = {:d}, nel = {:d}, Np = {}".format(N,Ne,Np))
@@ -1296,7 +1326,7 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
         # Initialize for temperature
         q0 = qe
         q = qe
-
+        
         Qt = zeros((Np,stages))
         QQ = zeros((Np,stages))
         R = zeros((Np,stages))
@@ -1427,13 +1457,14 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
                 
                 if(bcType == "Dirichlet"):
 
-                    Qt[:,i] = apply_Dirichlet_BC_vec(Qt[:,i],bsido,qe,Nbound)
+                    #Qt[:,i] = apply_Dirichlet_BC_vec(Qt[:,i],bsido,qe,Nbound)
+                    Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
 
                 elif(bcType == "Neumann"):
                     
                     qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
 
-                    Qt[:,i] = Qt[:,i] + dt*qbc
+                    Qt[:,i] = Qt[:,i] + dt*c*qbc
 
                 R[:,i] = Dhmatrix@Qt[:,i]
 
@@ -1446,17 +1477,18 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
 
             tn = tn + dt
 
-            qe,gradq = exact_solution(coord,Np,icase,tn+aa*dt)
+            qe,gradq = exact_solution(coord,Np,icase,time)
             
             if(bcType == "Dirichlet"):
 
-                    qp = apply_Dirichlet_BC_vec(qp,bsido,qe,Nbound)
+                    #qp = apply_Dirichlet_BC_vec(qp,bsido,qe,Nbound)
+                    qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
 
             elif(bcType == "Neumann"):
 
                 qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
                 #print(qbc)
-                qp = qp + dt*qbc                                       
+                qp = qp + dt*c*qbc                                       
 
             # update the solution q
             q = qp 
@@ -1474,7 +1506,7 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
         #ntime = 0
         q1 = q21[:,0]
         q = q21[:,1]
-
+        #q = qe
         for itime in range(3,ntime+1):
 
             time = time + dt
@@ -1485,7 +1517,8 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
             
             if(bcType == "Dirichlet"):
 
-                qp = apply_Dirichlet_BC_vec(qp,bsido,qe,Nbound)
+                #qp = apply_Dirichlet_BC_vec(qp,bsido,qe,Nbound)
+                qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
 
             elif(bcType == "Neumann"):
 
@@ -1500,6 +1533,6 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
 
     # End of time integration
     
-    qe,gradq = exact_solution(coord,Np,icase,time)
-    
+    #qe,gradq = exact_solution(coord,Np,icase,time)
+
     return qe, q, coord, intma
