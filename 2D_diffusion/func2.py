@@ -245,7 +245,7 @@ def metrics(coord,intma,l_basis,dl_basis,wnq,Ne,N,Q):
                 
     return ksi_x,ksi_y,eta_x,eta_y,jac
 
-def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx):
+def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx,bound_index):
 
     #Initialize Global Arrays
     coord = zeros((Np,2))
@@ -331,7 +331,7 @@ def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx):
         face[ib,0] = ip1
         face[ib,1] = ip2
         face[ib,2] = ie-1
-        face[ib,3] = 3
+        face[ib,3] = bound_index[0]
         ib = ib + 1
 
     #Right Boundary
@@ -345,7 +345,7 @@ def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx):
         face[ib,0] = ip1
         face[ib,1] = ip2
         face[ib,2] = ie-1
-        face[ib,3] = 3
+        face[ib,3] = bound_index[1]
         ib = ib+1
     #Top Boundary
     for ex in range(Nex,0,-1):
@@ -358,7 +358,7 @@ def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx):
         face[ib,0] = ip1
         face[ib,1] = ip2
         face[ib,2] = ie-1
-        face[ib,3] = 3
+        face[ib,3] = bound_index[2]
         ib = ib+1
     #Left Boundary
     for ey in range(Ney,0,-1):
@@ -371,7 +371,7 @@ def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx):
         face[ib,0] = ip1
         face[ib,1] = ip2
         face[ib,2] = ie-1
-        face[ib,3] = 3
+        face[ib,3] = bound_index[3]
         ib = ib+1
     
     #Generate BSIDO
@@ -1011,9 +1011,12 @@ def exact_solution(coord,Np,icase,time):
         for i in range(Np):
             x = coord[i,0]
             y = coord[i,1]
-            
             qe[i] = sol(x,func,time)
             
+#             if(time == 0.0):
+#                 qe[i] = sol(x,func,time)
+#             else:
+#                 qe[i] = 0.0
         
     return qe,gradq
 
@@ -1043,7 +1046,14 @@ def apply_Dirichlet_BC_vec1(Rvector,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
         iloc = int(psideh[n,0])
         er = int(psideh[n,3])
         
-        if(er == -3):
+        flag = 0
+        
+        if(er < 0):
+        
+            flag = er%-10
+        
+        if(flag == -5):
+            #print("Dirichlet ",flag)
             for i in range(Q+1):
 
                 il = int(imapl[i,iloc,0])
@@ -1091,7 +1101,14 @@ def apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,
         iloc = int(psideh[n,0])
         er = int(psideh[n,3])
         
-        if(er == -3):
+        flag = 0
+        
+        if(er < 0):
+            
+            flag = er%-10
+        
+        if(flag == -4):
+            #print("Neumann ",flag)
             for i in range(Q+1):
 
                 wq = jac_side[n,i]
@@ -1121,17 +1138,23 @@ def Robin_start(q,intma,jac_side,imapl,psideh,Np,Q,Nside,coord):
         iloc = int(psideh[n,0])
         er = int(psideh[n,3])
         
-        for i in range(Q+1):
+        flag = 0
+        
+        if(er < 0):
+            flag = er%-10
+        
+        if(flag == -5):
+            for i in range(Q+1):
 
-            il = int(imapl[i,iloc,0])
-            jl = int(imapl[i,iloc,1])
-            ip = int(intma[el,il,jl])
-            
-            x = coord[ip,0]
-            x0 = coord[0,0]
-            
-            if(x == x0):
-                #print(ip)
+                il = int(imapl[i,iloc,0])
+                jl = int(imapl[i,iloc,1])
+                ip = int(intma[el,il,jl])
+
+                #x = coord[ip,0]
+                #x0 = coord[0,0]
+
+                #if(x == x0):
+                    #print(ip)
                 q[ip] = 0
         
     return q
@@ -1146,7 +1169,12 @@ def Flux_matrix(intma,jac_side,imapl,psideh,Np,Q,Nside,coord):
         iloc = int(psideh[n,0])
         er = int(psideh[n,3])
         
-        if(er == -3):
+        flag = 0
+        
+        if(er < 0):
+            flag = er%-10
+        
+        if(flag == -4):
             for i in range(Q+1):
 
                 wq = jac_side[n,i]
@@ -1225,68 +1253,14 @@ def IRK_coefficients(ti_method):
         alpha[5,4] = -2260.0/8211.0
         alpha[5,5] = alpha[1,1]
         beta[:] = alpha[stages-1,:]
-    elif(ti_method == 5):
-        stages = 8
-        alpha = zeros((stages,stages))
-        beta = zeros(stages)
-        alpha[1,0] = 41.0/200.0
-        alpha[1,1] = 41.0/200.0
-        alpha[2,0] = 41.0/400.0
-        alpha[2,1] = -567603406766.0/11931857230679.0
-        alpha[2,2] = alpha[1,1]
-        alpha[3,0] = 683785636431.0/9252920307686.0
-        alpha[3,1] = 0.0
-        alpha[3,2] = -110385047103.0/1367015193373.0
-        alpha[3,3] = alpha[1,1]
-        alpha[4,0] =  3016520224154.0/10081342136671.0
-        alpha[4,1] = 0.0
-        alpha[4,2] = 30586259806659.0/12414158314087.0
-        alpha[4,3] = -22760509404356.0/11113319521817.0
-        alpha[4,4] = alpha[1,1]
-        alpha[5,0] = 218866479029.0/1489978393911.0
-        alpha[5,1] = 0.0
-        alpha[5,2] = 638256894668.0/5436446318841.0
-        alpha[5,3] = -1179710474555.0/5321154724896.0
-        alpha[5,4] = -60928119172.0/8023461067671.0
-        alpha[5,5] = alpha[1,1]
-        alpha[6,0] = 1020004230633.0/5715676835656.0
-        alpha[6,1] = 0.0
-        alpha[6,2] = 25762820946817.0/25263940353407.0
-        alpha[6,3] = -2161375909145.0/9755907335909.0
-        alpha[6,4] = -211217309593.0/5846859502534.0
-        alpha[6,5] = -4269925059573.0/7827059040749.0
-        alpha[6,6] = alpha[2,2]
-        alpha[7,0] = -872700587467.0/9133579230613.0
-        alpha[7,1] = 0.0
-        alpha[7,2] = 0.0
-        alpha[7,3] = 22348218063261.0/9555858737531.0
-        alpha[7,4] = -1143369518992.0/8141816002931.0
-        alpha[7,5] = - 39379526789629.0/19018526304540.0
-        alpha[7,6] = 32727382324388.0/42900044865799.0
-        alpha[7,7] = alpha[1,1]
-        beta[:] = alpha[stages-1,:]
-    elif(ti_method == 6):
-        stages = 10
-        alpha = zeros((stages,stages))
-        beta = zeros(stages)
-        alpha[1,1] = 0.2928932188134525
-        alpha[2,1] = 0.3812815664617709
-        alpha[3,1] = 0.4696699141100893
-        alpha[4,1] = 0.5580582617584078
-        alpha[5,1] = 0.6464466094067263
-        alpha[6,1] = 0.7348349570550446
-        alpha[7,1] = 0.8232233047033631
-        alpha[8,1] = 0.9116116523516815
-        alpha[9,1] = 0.7071067811865476
-        alpha[9,9] = 0.2928932188134525
-        beta[:] = alpha[stages-1,:]
+    
 
     return alpha, beta, stages
       
 
 
-def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,Tfinal,dt,c,cfl,\
-                     kstages,time_method,alpha1,beta1):
+def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,Tfinal,c,cfl,\
+                     kstages,time_method,alpha1,beta1,x_boundary,y_boundary):
     
     # Compute Interpolation and Integration Points
     
@@ -1300,8 +1274,15 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
     l_basis, dl_basis = LagrangeBasis_deriv(N,Q,xgl, xnq)
     
     # 2D grid 
-    coord, intma, bsido,face = grid_2D(Np, Ne, Nbound, Nelx, Nely, N, Q, xgl, ax, bx)
-    #print(bsido)
+    bound_index = zeros(4)
+    bound_index[0] = y_boundary[0]
+    bound_index[2] = y_boundary[1]
+    
+    bound_index[1] = x_boundary[1]
+    bound_index[3] = x_boundary[0]
+    
+    coord, intma, bsido,face = grid_2D(Np, Ne, Nbound, Nelx, Nely, N, Q, xgl, ax, bx,bound_index)
+
     # metrics terms
     ksi_x,ksi_y,eta_x,eta_y,jac = metrics(coord,intma,l_basis,dl_basis,wnq,Ne,N,Q)
     
@@ -1309,14 +1290,9 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
     
     psideh, imapl, imapr = create_face(iside,intma,Nside,N)
     
-    #print(psideh)
-    
     # Compute the normal vectors and face jacobian
     nx,ny,jac_side = compute_normals(psideh,intma,coord,Nside,N,Q,wnq,l_basis,dl_basis)
-    #print(jac_side)
-    # Compute the flux matrix
-    Flux = Flux_matrix(intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
-    #print(Flux)
+
     # Compute the mass matrix
     Mmatrix = create_Mmatrix(jac,intma,l_basis,Np,Ne,N,Q)
     
@@ -1326,17 +1302,21 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
     #Impose Homogeneous Dirichlet Boundary Conditions
     
     if(alpha1 == 0 and beta1 == 1):     # Dirichlet
-        bcType = "Dirichlet"
-        #Mmatrix = apply_Dirichlet_BC(Mmatrix,bsido,Nbound)
-        #Lmatrix = apply_Dirichlet_BC(Lmatrix,bsido,Nbound)
+        #bcType = "Dirichlet"
+        Mmatrix = apply_Dirichlet_BC(Mmatrix,bsido,Nbound)
+        Lmatrix = apply_Dirichlet_BC(Lmatrix,bsido,Nbound)
         Dhmatrix = c*Lmatrix
         
     elif(alpha1 == 1 and beta1 == 0):  # Neumann
-        bcType = "Neumann"
+        #bcType = "Neumann"
         Dhmatrix = c*Lmatrix
         
     elif(alpha1 == 1 and beta1 != 0):  # Robin 
-        bcType = "Robin"
+        #bcType = "Robin"
+        
+        # Compute the flux matrix
+        Flux = Flux_matrix(intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
+
         
         Lmatrix = Robin_matrix_start(Lmatrix,intma,imapl,psideh,Np,Q,Nside,coord)
         Mmatrix = Robin_matrix_start(Mmatrix,intma,imapl,psideh,Np,Q,Nside,coord)
@@ -1355,7 +1335,7 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
     dx = (bx-ax)/(Nx)
     dt_est = cfl*dx**2/abs(u)
     #dt_est = 0.005
-    ntime = int(floor(Tfinal/dt_est)+1)
+    ntime = int(floor(Tfinal/dt_est))
     dt = Tfinal/ntime
 
     print("N = {:d}, nel = {:d}, Np = {}".format(N,Ne,Np))
@@ -1407,16 +1387,15 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
                 
                 qe,gradq = exact_solution(coord,Np,icase,tn+aa*dt)
                 
-                if(bcType == "Dirichlet"):
+                # Apply boundary conditions
+ 
+                qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
 
-                    Qt[:,i] = apply_Dirichlet_BC_vec(Qt[:,i],bsido,qe,Nbound)
+                Qt[:,i] = Qt[:,i] + dt*c*qbc
 
-                elif(bcType == "Neumann"):
-                    
-                    qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
-                    
-
-                    Qt[:,i] = Qt[:,i] + dt*qbc
+                Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
+            
+                # End apply BCs
 
                 R[:,i] = Dhmatrix@Qt[:,i]
 
@@ -1431,16 +1410,15 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
             
             qe,gradq = exact_solution(coord,Np,icase,time)
             
-            if(bcType == "Dirichlet"):
-                 
-                qp = apply_Dirichlet_BC_vec(qp,bsido,qe,Nbound)
-
-            elif(bcType == "Neumann"):
-
-                qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
+            # Apply boundary conditions
+            
+            qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
                 
-
-                qp = qp + dt*qbc
+            qp = qp + dt*c*qbc  
+            
+            qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
+            
+            # End apply BCs
 
             # update the solution q
             q = qp   
@@ -1478,20 +1456,15 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
 
             qe,gradq = exact_solution(coord,Np,icase,tn+aa*dt)
 
-            if(bcType == "Dirichlet"):
+            # Apply boundary conditions
 
-                #Qt[:,i] = apply_Dirichlet_BC_vec(Qt[:,i],bsido,qe,Nbound)
-                Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
+            qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
 
-            elif(bcType == "Neumann"):
+            Qt[:,i] = Qt[:,i] + dt*c*qbc
 
-                qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
+            Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
 
-                Qt[:,i] = Qt[:,i] + dt*c*qbc
-
-            elif(bcType == "Robin"):
-
-                Qt[:,i] = Robin_start(Qt[:,i],intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
+            # End apply BCs
 
             R[:,i] = Dhmatrix@Qt[:,i]
 
@@ -1506,21 +1479,15 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
 
         qe,gradq = exact_solution(coord,Np,icase,tn+aa*dt)
 
-        if(bcType == "Dirichlet"):
+        # Apply boundary conditions
+            
+        qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
 
-            #qp = apply_Dirichlet_BC_vec(qp,bsido,qe,Nbound)
-            qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
+        qp = qp + dt*c*qbc  
 
-        elif(bcType == "Neumann"):
+        qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
 
-            qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
-
-            qp = qp + dt*c*qbc  
-
-        elif(bcType == "Robin"):
-
-            qp = Robin_start(qp,intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
-
+        # End apply BCs
 
 
         # update the solution q
@@ -1550,20 +1517,15 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
             
             qe,gradq = exact_solution(coord,Np,icase,time)
             
-            if(bcType == "Dirichlet"):
-
-                #qp = apply_Dirichlet_BC_vec(qp,bsido,qe,Nbound)
-                qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
-
-            elif(bcType == "Neumann"):
-
-                qbc = apply_Neumann_BC(A_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
-
-                qp = qp + 2*c*dt*qbc  
-                
-            elif(bcType == "Robin"):
+            # Apply boundary conditions
             
-                qp = Robin_start(qp,intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
+            qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
+                
+            qp = qp + dt*c*qbc  
+            
+            qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
+            
+            # End apply BCs
              
                 
             q0 = q
@@ -1574,7 +1536,9 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
         # Initialize for temperature
         q0 = qe
         q = qe
-
+        
+        q_00 = zeros(Np)
+        
         Qt = zeros((Np,stages))
         QQ = zeros((Np,stages))
         R = zeros((Np,stages))
@@ -1603,21 +1567,15 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
 
                 qe,gradq = exact_solution(coord,Np,icase,tn+aa*dt)
                 
-                if(bcType == "Dirichlet"):
+                # Apply boundary conditions
+ 
+                qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
 
-                    #Qt[:,i] = apply_Dirichlet_BC_vec(Qt[:,i],bsido,qe,Nbound)
-                    Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
-
-                elif(bcType == "Neumann"):
-                    
-                    qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
-
-                    Qt[:,i] = Qt[:,i] + dt*c*qbc
-                    
-                elif(bcType == "Robin"):
+                Qt[:,i] = Qt[:,i] + dt*c*qbc
+                #qe = q_00
+                #Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
             
-                    Qt[:,i] = Robin_start(Qt[:,i],intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
-            
+                # End apply BCs
 
                 R[:,i] = Dhmatrix@Qt[:,i]
 
@@ -1632,22 +1590,16 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
 
             qe,gradq = exact_solution(coord,Np,icase,time)
             
-            if(bcType == "Dirichlet"):
-
-                    #qp = apply_Dirichlet_BC_vec(qp,bsido,qe,Nbound)
-                    qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
-
-            elif(bcType == "Neumann"):
-
-                qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
-                
-                qp = qp + dt*c*qbc  
-                
-            elif(bcType == "Robin"):
+            # Apply boundary conditions
             
-                qp = Robin_start(qp,intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
+            qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
+                
+            qp = qp + dt*c*qbc  
+            #qe = q_00
+            qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
             
-
+            # End apply BCs
+            
             # update the solution q
             q = qp 
 
@@ -1658,8 +1610,6 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
         if(alpha1 == 1 and beta1 != 0):
             
             A = 11*Mmatrix - 6*c*dt*(Lmatrix + beta1*Flux)
-            
-            #print(A)
             
         else:
             
@@ -1681,21 +1631,15 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
             
             qe,gradq = exact_solution(coord,Np,icase,time)
             
-            if(bcType == "Dirichlet"):
-
-                #qp = apply_Dirichlet_BC_vec(qp,bsido,qe,Nbound)
-                qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
-
-            elif(bcType == "Neumann"):
-
-                qbc = apply_Neumann_BC(A_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
-
-                qp = qp + 6*c*dt*qbc  
-                
-            elif(bcType == "Robin"):
+            # Apply boundary conditions
             
-                qp = Robin_start(qp,intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
+            qbc = apply_Neumann_BC(A_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
+
+            qp = qp + 6*c*dt*qbc  
+            #qe = q_00    
+            qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
             
+            # End apply BCs
                 
             # update
             q0 = q1
@@ -1706,4 +1650,4 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
     
     qe,gradq = exact_solution(coord,Np,icase,time)
 
-    return qe, q, coord, intma
+    return qe, q, coord, intma, ntime
