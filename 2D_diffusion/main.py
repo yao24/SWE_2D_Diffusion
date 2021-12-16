@@ -2,26 +2,23 @@ from matplotlib.pylab import*
 
 from scipy.interpolate import griddata
 from matplotlib import cm
-#import pandas as pd
-#from time import perf_counter
-#from sympy import*
 import warnings
 warnings.filterwarnings('ignore')
 
 from Inputs import*
     
 order = array([2,3])        # polynomial order
-Nv = array([8,16,32,64])
+Nv = array([8,16,24,32])
 kstages = 3
 cfl = 0.25
 dt = 1e-2
-Tfinal = 0.25
+Tfinal = 0.1
 iplot = False            # plot the solution
 iconverg = True
 
-time_method = "BDF3"      # IRK, BDF2 or BDF3
+time_method = "BDF2"      # IRK, BDF2 or BDF3
 integration_type = 1      # % = 1 is inexact and = 2 is exact
-icase = 4                 # select icase: 1,2,3,4
+icase = 2                 # select icase: 1,2,3,4
 
 alpha = 1              
 beta = -1                  # Dirichlet: alpha = 0, beta = 1

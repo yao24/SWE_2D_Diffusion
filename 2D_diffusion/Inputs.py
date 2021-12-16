@@ -37,15 +37,33 @@ def domain(icase):
     return ax, bx, coeff
 
 # Boundary conditions
-def bc_type(alpha,beta):
+# def bc_type(alpha,beta):
     
-    if(alpha == 0 and beta == 1):
-        print("Boundary conditions: Dirichlet")
-    elif(alpha == 1 and beta == 0):
-        print("Boundary conditions: Neumann")
-    elif(alpha == 1 and beta != 0):
-        print("Boundary conditions: Robin")
-    print("====================================\n") 
+#     if(alpha == 0 and beta == 1):
+#         print("Boundary conditions: Dirichlet")
+#     elif(alpha == 1 and beta == 0):
+#         print("Boundary conditions: Neumann")
+#     elif(alpha == 1 and beta != 0):
+#         print("Boundary conditions: Robin")
+#     print("====================================\n") 
+    
+def bc_type(x_boundary,y_boundary):
+    
+    bound = array([x_boundary,y_boundary])
+    
+    sbound = ["Dirichlet", "Neumann", "Robin"]
+    nbound = [5,4,8]
+    
+    st = ""
+    
+    for i in range(3):
+        
+        if(nbound[i] in bound):
+            st += sbound[i] + " & "
+            
+    print("Boundary conditions: ",st)
+    
+    print("==========================================\n")
     
 dt_data = dtype([('N',int),('M',int),('cfl','d'),('2-norm','d')]) 
     
@@ -188,7 +206,7 @@ def simulation(file,N,Nv,time_method,kstages,integration_type,icase,Tfinal,alpha
     
     dt_data = dtype([('N',int),('M',int),('cfl','d'),('2-norm','d')])
     
-    cfl = 1/(N+1)       # cfl number
+    cfl = 6.0#1/(N+1)       # cfl number
 
     #N = order[iN]
     if (integration_type == 1):
@@ -215,14 +233,15 @@ def simulation(file,N,Nv,time_method,kstages,integration_type,icase,Tfinal,alpha
                                              icase,Tfinal,c,cfl,kstages,time_method,alpha,beta,\
                                              x_boundary,y_boundary)
         
-        print("\twalltime: {}".format(tf))
-        
         #Compute Norm
 
         top = sum((q - qe)**2)
         bot = sum(qe**2)
 
         e2 = sqrt(top/bot)
+        
+        print("\tl2_norm: {}".format(e2))
+        print("\twalltime: {}".format(tf))
         
         t = array((nel,ntime,cfl,e2),dtype=dt_data)
         file.write(t)
@@ -233,7 +252,8 @@ def Visualisation2(order,Nv,time_method,kstages,integration_type,icase,Tfinal,al
     # Domain and diffusion coefficient
     
     ax,bx,c = domain(icase)
-    bc_type(alpha,beta)
+    #bc_type(alpha,beta)
+    bc_type(x_boundary,y_boundary)
     
     output_file = 'output.dat'
     file = open(output_file,"wb")
