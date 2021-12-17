@@ -1365,7 +1365,7 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,
     #Nx = Nelx*N + 1
     dx = (bx-ax)/(Np)
     dt_est = cfl*dx**2/abs(u)
-    #dt_est = 1e-3
+    #dt_est = 1e-7
     ntime = int(floor(Tfinal/dt_est)+1)
     dt = Tfinal/ntime
 

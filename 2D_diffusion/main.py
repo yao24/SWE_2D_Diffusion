@@ -7,7 +7,7 @@ warnings.filterwarnings('ignore')
 
 from Inputs import*
     
-order = array([2,3])        # polynomial order
+order = array([2,3,4])        # polynomial order
 Nv = array([8,16,24,32])
 kstages = 3
 cfl = 0.25

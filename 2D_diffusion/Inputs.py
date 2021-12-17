@@ -206,7 +206,7 @@ def simulation(file,N,Nv,time_method,kstages,integration_type,icase,Tfinal,alpha
     
     dt_data = dtype([('N',int),('M',int),('cfl','d'),('2-norm','d')])
     
-    cfl = 6.0#1/(N+1)       # cfl number
+    cfl = 9.0#1/(N+1)       # cfl number
 
     #N = order[iN]
     if (integration_type == 1):
