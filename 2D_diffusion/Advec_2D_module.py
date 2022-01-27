@@ -246,7 +246,7 @@ def metrics(coord,intma,l_basis,dl_basis,wnq,Ne,N,Q):
                 
     return ksi_x,ksi_y,eta_x,eta_y,jac
 
-def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx,ay,by,bound_index):
+def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx,bound_index):
 
     #Initialize Global Arrays
     coord = zeros((Np,2))
@@ -260,7 +260,7 @@ def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx,ay,by,bound_index):
 
     #Set some constants
     dx = (bx-ax)/(Nex) 
-    dy = (by-ay)/(Ney)
+    dy = (bx-ax)/(Ney)
     
     Nx = Nex*N + 1
     Ny = Ney*N + 1
@@ -272,7 +272,7 @@ def grid_2D(Np, Ne, Nbound, Nex, Ney, N, Q, Xn, ax, bx,ay,by,bound_index):
     
     for ey in range(1,Ney+1):
         
-        y0 = ay + (ey-1)*dy
+        y0 = ax + (ey-1)*dy
 
         if(ey == 1): 
             l1 = 0
@@ -572,15 +572,20 @@ def create_Dmatrix(u,v,intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,
                 n_y = eta_y[e-1,k,l]
                 
                 ip = int(intma[e-1,k,l])
-                u_k = u[ip]
-                v_k = v[ip]
+                #u_k = u[ip]
+                #v_k = v[ip]
+
                 #Interpolate onto Quadrature Points
-                q_k = 0 
+                q_k = 0
+                u_k = 0
+                v_k = 0
                 for n in range(N+1):
                     for m in range(N+1):
                         jp = int(inode[m,n])
                         #print(l_basis[n,l])
-                        q_k = q_k+l_basis[m,k]*l_basis[n,l]*q[jp]
+                        q_k += l_basis[m,k]*l_basis[n,l]*q[jp]
+                        u_k += l_basis[m,k]*l_basis[n,l]*u[jp]
+                        v_k += l_basis[m,k]*l_basis[n,l]*v[jp]
                 #print(q_k)
                 #Loop through I points
                 for j in range(N+1):
@@ -595,6 +600,42 @@ def create_Dmatrix(u,v,intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,
                 
     return rhs
 
+def compute_rhs_diff1(q,u,v,ksi_x,ksi_y,eta_x,eta_y,jac,dl_basis,Ne,N,Np,intma):
+
+    #global arrays
+    q_rhs = zeros(Np)
+
+    #Construct FEM-type Operators
+    for e in range(1,Ne+1):
+
+        #Loop Integration Points
+        for i in range(N+1):
+            for j in range(N+1):
+                wq = jac[e-1,j,i]
+                e_x = ksi_x[e-1,j,i]
+                e_y = ksi_y[e-1,j,i]
+                n_x = eta_x[e-1,j,i]
+                n_y = eta_y[e-1,j,i]
+
+                #Interpolate at Integration Point
+                ip = int(intma[e-1,j,i])
+                u_k = u[ip] #[e-1,i1,i2]
+                v_k = v[ip] #[e-1,i1,i2]
+                
+                dq_e = 0; dq_n = 0
+                for k in range(N+1):
+                    i1 = int(intma[e-1,k,j])
+                    dq_e +=  dl_basis[k,i]*q[i1]
+                    i2 = int(intma[e-1,i,k])
+                    dq_n +=  dl_basis[k,j]*q[i2]
+                
+                dq_x = dq_e*e_x + dq_n*n_x
+                dq_y = dq_e*e_y + dq_n*n_y
+                
+                q_rhs[ip] = wq*(u_k*dq_x + v_k*dq_y)
+            
+    return q_rhs
+
 def Dmatrix_2D(u,v,intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,N,Q):
     
     DM = zeros((Np,Np))
@@ -603,6 +644,7 @@ def Dmatrix_2D(u,v,intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,N,Q)
         q = zeros(Np)
         q[ip] = 1
         rhs = create_Dmatrix(u,v,intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,N,Q,q)
+        #rhs = compute_rhs_diff1(q,u,v,ksi_x,ksi_y,eta_x,eta_y,jac,dl_basis,Ne,N,Np,intma)
 
         DM[:,ip] = rhs[:,0] + rhs[:,1]
         
@@ -996,96 +1038,58 @@ def AllZeros(f,xmin,xmax,N):
             z.append(fsolve(f,(x2*y1-x1*y2)/(y1-y2))[0])
     return array(z)
 
-def sol(x,func,t):
-    
-#     M = 5
-#     X = zeros(M)
-#     for n in range(1,M+1):
 
-#         z = AllZeros(func,(2*n-1)*pi/6,n*pi/3,15)
-#         X[n-1] = z[0]
-
-#     cn = 200*(3*X-sin(3*X))/(3*X*(3*X-sin(3*X)*cos(3*X)))
-    
-    cn = array([47.0448633,  45.14125027, 21.35860322, 19.34033077, 12.96744052])
-    X = array([0.72487534, 1.66788175, 2.67948759, 3.70984781, 4.74736721])
-    
-    un = 0
-
-    for n in range(len(cn)):
-
-        un += cn[n]*exp(-(X[n]**2)*t/25)*sin(X[n]*x)
-        
-    return un
-
-def exact_solution(coord,Np,icase,time):
+def exact_solution(coord,Np,c,icase,ax,bx,time):
 
     #Initialize
-    
-    gradq = zeros((Np,2))
     qe = zeros(Np)
+    cc = pi*c
+    
+    #Initialize
+    qe = zeros(Np)
+    ue = zeros(Np)
+    ve = zeros(Np)
+
+    #Set some constants
+    w = 1
+    visc = 0
+    xmin = ax 
+    xmax = bx
+    ymin = ax 
+    ymax = bx
+    
+    
+    xl = bx-ax
+    yl = bx-ax
+    xm = 0.5*(xmax+xmin)
+    ym = 0.5*(ymax+ymin)
+    xc = xmin + 0.25*xl
+    yc = ymin + 0.5*yl
+    sigma0 = 0.1
+    rc = 0.125
+    a = 1/(1 + 2*visc*time/sigma0**2)
+    den = 2*(sigma0**2 + 2*visc*time)
+    
     #Generate Grid Points
     if(icase == 1):
-        
-        x = coord[:,0]
-        y = coord[:,1]
-
-        qe = exp(x+y+2*time)
-        gradq[:,0] = exp(x+y+2*time)
-        gradq[:,1] = exp(x+y+2*time)
-            
-    elif(icase == 2):
-        
-        x = coord[:,0]
-        y = coord[:,1]
-        
-        #print(y)
-
-        qe = sin(x)*exp(-time)
-        gradq[:,0] = cos(x)*exp(-time)
-        gradq[:,1] = 0.0
-            
-    elif(icase == 3):
-        
-        x = coord[:,0]
-        y = coord[:,1]
-
-        qe = cos(pi*x)*cos(pi*y)*exp(-2*pi**2*time)
-        gradq[:,0] = -pi*sin(pi*x)*cos(pi*y)*exp(-2*pi**2*time)
-        gradq[:,1] = -pi*cos(pi*x)*sin(pi*y)*exp(-2*pi**2*time)
-  
-    elif(icase == 4):
-        
-        x = coord[:,0]
-        y = coord[:,1]
-
-        qe = 1.0/(4.0*time+1.0)*exp(-(x-0.5)**2/(0.01*(4.0*time+1.0)))*exp(-(y-0.5)**2/(0.01*(4.0*time+1.0)))
-        gradq[:,0] = (-2*(x-0.5)/(0.01*(4.0*time+1.0)))*qe
-        gradq[:,1] = (-2*(y-0.5)/(0.01*(4.0*time+1.0)))*qe
-
-    elif(icase == 5):
-
-        # This function is used in the computation of the exact solution in the case of robin BC
-        func = lambda x: tan(3*x) +2*x
-        
         for i in range(Np):
             x = coord[i,0]
             y = coord[i,1]
+            r = sqrt((x-xc)**2 + (y-yc)**2)
+   
+            xx = x - xc*cos(time) - yc*sin(time)
+            yy = y + xc*sin(time) - yc*cos(time)
+            qe[i] = a*exp(-(xx**2 + yy**2)/den)
+            ue[i] = +w*(y-ym)
+            ve[i] = -w*(x-xm)
+    elif(icase == 2): 
+        for i in range(Np):
+            x = coord[i,0]
+            y = coord[i,1]
+            qe[i] = cos(cc*x)*cos(cc*y)
+            fe[i] = -2*cc**2*cos(cc*x)*cos(cc*y)
             
-            qe[i] = sol(x,func,time)
-            
-    elif(icase == 6):
-        
-        x = coord[:,0]
-        y = coord[:,1]
-        
-        #print(y)
-
-        qe = sin(pi*x)*exp(-time*pi**2)
-        gradq[:,0] = pi*cos(pi*x)*exp(-time*pi**2)
-        gradq[:,1] = 0.0
-
-    return qe,gradq
+    return qe,ue,ve
 
 def apply_Dirichlet_BC(Lmatrix,bsido,Nbound):
 
@@ -1104,7 +1108,7 @@ def apply_Dirichlet_BC_vec(Rvector,bsido,qe,Nbound):
 
     return Rvector
 
-def apply_Dirichlet_BC_vec1(Rvector,qe,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nelx,Nside,mixed):
+def apply_Dirichlet_BC_vec1(Rvector,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside):
     
     for n in range(Nside):
         
@@ -1117,14 +1121,7 @@ def apply_Dirichlet_BC_vec1(Rvector,qe,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nel
         if(er < 0):
         
             flag = er%-10
-            
-        if(flag == -5 and mixed == True):
-
-            il1 = int(imapl[0,0,0])
-            jl1 = int(imapl[N,0,0])
-            ip1 = int(intma[0,0,0])
-            ip2 = int(intma[Ne-Nelx,il1,jl1])
-            
+        
         if(flag == -5):
             #                       print("Dirichlet ",flag)
             for i in range(Q+1):
@@ -1132,96 +1129,11 @@ def apply_Dirichlet_BC_vec1(Rvector,qe,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nel
                 il = int(imapl[i,iloc,0])
                 jl = int(imapl[i,iloc,1])
                 ip = int(intma[el,il,jl])
+
+                Rvector[ip] = qe[ip]
+                #print(ip)
                 
-                if(mixed == True and (ip == ip1 or ip == ip2)):
-                    
-                    Rvector[ip] = Rvector[ip]
-                else:
-                    Rvector[ip] = qe[ip]
-        
     return Rvector
-
-def apply_Dirichlet_BC_vec_mixed(qT,qS,qe,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nelx,Nside,mixed,\
-                            Mmatrix_inv,c1, bcst1,hB, c2,SB, bcst2,dt,gammaS,gammaT, cw, Li, ci,\
-                            Ti, b, c, pb, a, Kf, Mf,coefF,Meltrate,SaltB,hT, vType):
-    
-    B = zeros(Np)
-    Rvector = zeros(Np)
-    bol = False
-    
-    for n in range(Nside):
-        
-        el = int(psideh[n,2])
-        iloc = int(psideh[n,0])
-        er = int(psideh[n,3])
-        
-        flag = 0
-        
-        if(er < 0):
-        
-            flag = er%-10
-            
-        if(flag == -5 and mixed == True):
-            
-            bol = True
-            
-            il1 = int(imapl[0,0,0])
-            jl1 = int(imapl[N,0,0])
-            ip1 = int(intma[0,0,0])
-            ip2 = int(intma[Ne-Nelx,il1,jl1])
-            
-        if(flag == -5):
-            #                       print("Dirichlet ",flag)
-            for i in range(Q+1):
-
-                il = int(imapl[i,iloc,0])
-                jl = int(imapl[i,iloc,1])
-                ip = int(intma[el,il,jl])
-                
-                if(mixed == True and (ip == ip1 or ip == ip2)):
-                    
-                    wq = jac_side[n,i]
-                    
-                    if(ip == ip1):
-                        
-                        ip3 = int(intma[1,0,0])
-                    elif(ip == ip2):
-                        ip3 = int(intma[Ne-Nelx+1,il1,jl1])
-                    
-                    Tw = qT[ip3]
-                    Sw = qS[ip3]
-
-                    L = coefF(Tw, gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Sw)
-                    # compute salinity at the boundary
-                    SB = SaltB(Kf,L,Mf,Sw)
-                    #print(SB)
-                    # Compute melt rate
-                    V = Meltrate(Sw, SB, gammaS)
-                    #print(V)
-                    if(vType == "heat"):
-                        ndp = hT(bcst1, V)
-                    if(vType == "salt"):
-                        ndp = hB(bcst2,SB, V)
-
-                    B[ip] += wq*ndp
-                    
-                    #Rvector[ip] = Rvector[ip]
-                else:
-                    Rvector[ip] = qe[ip]
-                    
-    
-    
-    if(bol and vType == "heat"):
-
-        B1 = Mmatrix_inv@B
-        q = qT + Rvector #+ dt*B1
-
-    elif(bol and vType == "salt"):
-
-        B1 = Mmatrix_inv@B
-        q = qS + Rvector #+ dt*B1
-        
-    return q
 
 def apply_Dirichlet_BC_matrix(Matrix,intma,imapl,psideh,Np,N,Q,Nside):
     
@@ -1417,8 +1329,6 @@ def apply_ice_bc(nx,ny,Mmatrix_inv,q,hT, c1, V, bcst1,hB, c2,SB, bcst2,intma,jac
 def apply_ice_bc_new(Mmatrix_inv,qT,qS,hT, c1, bcst1,hB, c2,SB, bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,dt,\
                      gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Kf, Mf, coefF,Meltrate,SaltB, vType):
     
-    
-    
     B = zeros(Np)
     bol = False
 
@@ -1433,7 +1343,7 @@ def apply_ice_bc_new(Mmatrix_inv,qT,qS,hT, c1, bcst1,hB, c2,SB, bcst2,intma,jac_
         if(er < 0):
             
             flag = er%-10
-
+        
         if(flag == -7):
             #print("Neumann ",flag)
             bol = True
@@ -1445,28 +1355,26 @@ def apply_ice_bc_new(Mmatrix_inv,qT,qS,hT, c1, bcst1,hB, c2,SB, bcst2,intma,jac_
                 il = int(imapl[i,iloc,0])
                 jl = int(imapl[i,iloc,1])
                 ip = int(intma[el,il,jl])
-                #print(flag,el,ip)
+                
                 ip1 = int(intma[el+1,il,jl])
                 
                 #print(ip,ip1)
                 
-                Tw = 2.3#qT[ip1]
-                Sw = 35 #qS[ip1]
+                Tw = qT[ip1]
+                Sw = qS[ip1]
 
                 L = coefF(Tw, gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Sw)
                 # compute salinity at the boundary
                 SB = SaltB(Kf,L,Mf,Sw)
-                TB = a*SB + b + c*pb
                 #print(SB)
                 # Compute melt rate
                 V = Meltrate(Sw, SB, gammaS)
                 #print(V)
                 if(vType == "heat"):
-                    #ndp = hT(bcst1, V)
-                    ndp = hT(bcst1, gammaT, TB,Tw,V)
+                    ndp = hT(bcst1, V)
                 if(vType == "salt"):
-                    ndp = hB(bcst2,SB, Sw, gammaS,V)#hB(bcst2,SB, V)
-
+                    ndp = hB(bcst2,SB, V)
+                    
                 #ndp = nxl*ndp + nyl*ndp
                     
                 B[ip] -= wq*ndp
@@ -1480,45 +1388,9 @@ def apply_ice_bc_new(Mmatrix_inv,qT,qS,hT, c1, bcst1,hB, c2,SB, bcst2,intma,jac_
         
         B1 = Mmatrix_inv@B
         q = qS + dt*B1
+    
     return q
 
-
-# Runge Kutta method
-def RKstages(ik, kstages):
-    
-    # Stages for Runge Kutta method
-    if(kstages == 1):
-        if(ik == 1):
-            a0 = 1; a1 = 0; beta = 1
-    elif (kstages == 2):
-        if(ik == 1):
-            a0 = 1; a1 = 0; beta = 1
-        elif(ik == 2):
-            a0 = 0.5; a1 = 0.5; beta = 0.5
-    elif(kstages == 3):
-        if(ik == 1):
-            a0=1; a1=0; beta=1
-
-        if(ik == 2):
-            a0=3/4; a1=1/4; beta=1/4 
-        if(ik == 3):
-            a0 = 1/3; a1 = 2/3; beta = 2/3
-
-    elif(kstages == 4):
-        if(ik == 1):
-            a0=1; a1=0; beta=1/2
-
-        if(ik == 2):
-            a0=0; a1=1; beta=1/2
-
-        if(ik == 3):
-            a0 = 2/3; a1 = 1/3; beta = 1/6
-
-        if (ik == 4):
-            a0 = 0; a1 = 1; beta = 1/2
-
-    return a0, a1, beta
-      
 def IRK_coefficients(ti_method):
     
   
@@ -1583,7 +1455,7 @@ def IRK_coefficients(ti_method):
     return alpha, beta, stages
 
 
-def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,Tfinal,c,cfl,\
+def diffusion_solver(N,Q,Ne, Np, ax, bx, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,Tfinal,c,cfl,\
                      kstages,time_method,alpha1,beta1,x_boundary,y_boundary):
     
     # Compute Interpolation and Integration Points
@@ -1605,7 +1477,7 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
     bound_index[1] = x_boundary[1]
     bound_index[3] = x_boundary[0]
     
-    coord, intma, bsido,face = grid_2D(Np, Ne, Nbound, Nelx, Nely, N, Q, xgl, ax, bx,ay,by,bound_index)
+    coord, intma, bsido,face = grid_2D(Np, Ne, Nbound, Nelx, Nely, N, Q, xgl, ax, bx,bound_index)
     #print(intma)
     # metrics terms
     ksi_x,ksi_y,eta_x,eta_y,jac = metrics(coord,intma,l_basis,dl_basis,wnq,Ne,N,Q)
@@ -1622,18 +1494,26 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
     Mmatrix = create_Mmatrix(jac,intma,l_basis,Np,Ne,N,Q)
     
     # Compute the Laplacian matrix
-    Lmatrix = create_Lmatrix(intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,N,Q)
+    #Lmatrix = create_Lmatrix(intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,N,Q)
     
     # Compute the flux matrix
     
-    Flux = Flux_matrix(intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
+    #Flux = Flux_matrix(intma,jac_side,imapl,psideh,Np,Q,Nside,coord)
         
     # RHS matrix for RK method
     
     #Lmatrix = apply_Dirichlet_BC_matrix(Lmatrix,intma,imapl,psideh,Np,N,Q,Nside)
     Mmatrix = apply_Dirichlet_BC_matrix(Mmatrix,intma,imapl,psideh,Np,N,Q,Nside)
     
-    Dhmatrix = c*(Lmatrix - beta1*Flux)
+    # initial solution
+    time = 0
+    qe,ue,ve = exact_solution(coord,Np,c,icase,ax,bx,time)
+    
+    AD = Dmatrix_2D(ue,ve,intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,N,Q)
+    
+    AD = apply_Dirichlet_BC_matrix(AD,intma,imapl,psideh,Np,N,Q,Nside)
+    
+    Dhmatrix = AD
              
     # Inverse mass matrix
     Mmatrix_inv = linalg.inv(Mmatrix)
@@ -1645,8 +1525,8 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
     u = 1
     #Nx = Nelx*N + 1
     dx = (bx-ax)/(Np)
-    dt_est = cfl*dx**2/abs(u)
-    #dt_est = 1e-7
+    dt_est = cfl*dx/abs(u)
+    #dt_est = 1e-4
     ntime = int(floor(Tfinal/dt_est)+1)
     dt = Tfinal/ntime
 
@@ -1654,9 +1534,7 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
     print("\tdt = {:.4e}".format(dt))
     print("\tNumber of time steps = {}".format(ntime))
     
-    # initial solution
-    time = 0
-    qe,gradq = exact_solution(coord,Np,icase,time)
+    
     #print(qe)
     # RHS matrix for RK method
     Rmatrix = Mmatrix_inv@Dhmatrix
@@ -1698,16 +1576,11 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
 
                 Qt[:,i] = Amatrix_inv@RR
                 
-                qe,gradq = exact_solution(coord,Np,icase,tn+aa*dt)
+                qe,ue,ve = exact_solution(coord,Np,c,icase,ax,bx,time)
                 
                 # Apply boundary conditions
-    
-                Qt[:,i] = apply_Neumann_BC(Mmatrix_inv,Qt[:,i],nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside,c*dt)
-            
-                Qt[:,i] = apply_Robin_BC(Mmatrix_inv,Qt[:,i],nx,ny,intma,jac_side,imapl,psideh,Np,Q,Nside,coord,\
-                                         qe,gradq,c*dt,beta1)
                 
-                Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
+                #Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
             
                 # End apply BCs
 
@@ -1722,15 +1595,11 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
 
             tn = tn + dt
             time = time + dt
-            qe,gradq = exact_solution(coord,Np,icase,time)
+            qe,ue,ve = exact_solution(coord,Np,c,icase,ax,bx,time)
             #print(qe)
             # Apply boundary conditions
-
-            qp = apply_Neumann_BC(Mmatrix_inv,qp,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside,c*dt)
-
-            qp = apply_Robin_BC(Mmatrix_inv,qp,nx,ny,intma,jac_side,imapl,psideh,Np,Q,Nside,coord, qe,gradq,c*dt,beta1)
             
-            qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
+            #qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
 
             # End apply BCs
 
@@ -1768,18 +1637,11 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
 
             Qt[:,i] = Amatrix_inv@RR
 
-            qe,gradq = exact_solution(coord,Np,icase,time)
+            qe,ue,ve = exact_solution(coord,Np,c,icase,ax,bx,time)
 
             # Apply boundary conditions
 
-            #qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
-
-            Qt[:,i] = apply_Neumann_BC(Mmatrix_inv,Qt[:,i],nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside,c*dt)
-
             Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
-
-            Qt[:,i] = apply_Robin_BC(Mmatrix_inv,Qt[:,i],nx,ny,intma,jac_side,imapl,psideh,Np,Q,Nside,coord,\
-                                     qe,gradq,c*dt,beta1)
 
             # End apply BCs
 
@@ -1792,15 +1654,11 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
 
         qp = q + dt*Mmatrix_inv@R_sum
 
-        qe,gradq = exact_solution(coord,Np,icase,time)
+        qe,ue,ve = exact_solution(coord,Np,c,icase,ax,bx,time)
 
         # Apply boundary conditions
 
-        qp = apply_Neumann_BC(Mmatrix_inv,qp,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside,c*dt)
-
         qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
-
-        qp = apply_Robin_BC(Mmatrix_inv,qp,nx,ny,intma,jac_side,imapl,psideh,Np,Q,Nside,coord, qe,gradq,c*dt,beta1)
 
         # End apply BCs
 
@@ -1817,13 +1675,9 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
             
             qp = Rmatrix@(4*q - q0)
             
-            qe,gradq = exact_solution(coord,Np,icase,time)
+            qe,ue,ve = exact_solution(coord,Np,c,icase,ax,bx,time)
             
             # Apply boundary conditions
-            
-            qp = apply_Neumann_BC(A_inv,qp,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside,2*c*dt)
-            
-            qp = apply_Robin_BC(A_inv,qp,nx,ny,intma,jac_side,imapl,psideh,Np,Q,Nside,coord, qe,gradq,2*c*dt,beta1)
             
             qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
             
@@ -1833,118 +1687,6 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
             q0 = q
             q = qp
             
-    elif(time_method == "BDF3"):
-
-        # Initialize for temperature
-        q0 = qe
-        q = qe
-        
-        q21 = zeros((Np,2))
-
-        Qt = zeros((Np,stages))
-        QQ = zeros((Np,stages))
-        R = zeros((Np,stages))
-
-        #ntime = 1
-        tn = 0
-        for itime in range(1,3):
-
-            time = time + dt
-
-            Qt[:,0] = q[:]
-            R[:,0] = Dhmatrix@Qt[:,0]
-
-            for i in range(1,stages):
-                aa = 0
-                R_sum = zeros(Np)
-
-                for j in range(i):
-                    R_sum = R_sum + alpha[i,j]*R[:,j]
-                    aa += alpha[i,j]
-
-                RR = Mmatrix@Qt[:,0] + dt*R_sum
-
-                Qt[:,i] = Amatrix_inv@RR
-                
-                qe,gradq = exact_solution(coord,Np,icase,tn+aa*dt)
-                
-                # Apply boundary conditions
- 
-                #qbc = apply_Neumann_BC(Mmatrix_inv,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside)
-    
-                Qt[:,i] = apply_Neumann_BC(Mmatrix_inv,Qt[:,i],nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside,c*dt)
-
-                Qt[:,i] =  apply_Dirichlet_BC_vec1(Qt[:,i],qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
-            
-                Qt[:,i] = apply_Robin_BC(Mmatrix_inv,Qt[:,i],nx,ny,intma,jac_side,imapl,psideh,Np,Q,Nside,coord,\
-                                         qe,gradq,c*dt,beta1)
-            
-                # End apply BCs
-
-                R[:,i] = Dhmatrix@Qt[:,i]
-
-            R_sum = zeros(Np)
-            
-            for i in range(stages):
-                R_sum = R_sum + beta[i]*R[:,i]
-
-            qp = q + dt*Mmatrix_inv@R_sum
-
-            tn = tn + dt
-            
-            qe,gradq = exact_solution(coord,Np,icase,time)
-
-            # Apply boundary conditions
-
-            qp = apply_Neumann_BC(Mmatrix_inv,qp,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside,c*dt)
-
-            qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
-            
-            qp = apply_Robin_BC(Mmatrix_inv,qp,nx,ny,intma,jac_side,imapl,psideh,Np,Q,Nside,coord, qe,gradq,c*dt,beta1)
-
-            # End apply BCs
-
-            # update the solution q
-            q = qp   
-           
-            q21[:,itime-1] = qp
-            
-
-        A = 11*Mmatrix - 6*dt*Dhmatrix#(Lmatrix - beta1*Flux)
-    
-        A_inv = linalg.inv(A)
-        Rmatrix = A_inv@Mmatrix
-        #Rmatrix = csr_matrix(Rmatrix)
-        
-        #ntime = 0
-        q1 = q21[:,0]
-        q = q21[:,1]
-        #q = qe
-        for itime in range(3,ntime+1):
-
-            
-
-            qp = Rmatrix@(18*q - 9*q1 + 2*q0)
-            
-            qe,gradq = exact_solution(coord,Np,icase,time)
-            
-            # Apply boundary conditions
-            
-            qp = apply_Neumann_BC(A_inv,qp,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside,6*c*dt)
-
-            qp = apply_Robin_BC(A_inv,qp,nx,ny,intma,jac_side,imapl,psideh,Np,Q,Nside,coord, qe,gradq,6*c*dt, beta1)
-            
-            qp =  apply_Dirichlet_BC_vec1(qp,qe,intma,jac_side,imapl,psideh,Np,N,Q,Nside)
-            
-            # End apply BCs
-                
-            # update
-            q0 = q1
-            q1 = q
-            q = qp
-            
-            time = time + dt
-
     # End of time integration
     
     #qe,gradq = exact_solution(coord,Np,icase,Tfinal)
@@ -1952,322 +1694,3 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
     tf = perf_counter() - t0
 
     return qe, q, coord, intma, ntime,tf
-
-
-def ice_ocean_Solver(N,Q,Ne, Np, ax, bx,ay,by, integration_type, hT, hB, cst1, c1, bcst1,cst2, c2,bcst2,\
-                     Tw, gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Sw, Kf, Mf, cfl, Tfinal,\
-                     coefF, Meltrate, SaltB, time_method, Nelx, Nely, Nx, Ny, Nbound,Nside,\
-                     kstages,x_boundary,y_boundary,mixed):
-    '''
-    This function is CG/DG solver for 1D advection-diffusion equation
-    
-    Inputs:
-    -------
-            N              : Polynomial order
-            Q              : Integration order(N+1: for exact, N: for inexact integration)
-            nel            : Number of element
-            nel0           : The first number of element 
-            Np             : Global grid points(nel*N+1 for CG, nel*(N+1) for DG)
-            ax, bx         : Left and right boundaries of the physical domain
-            intergatio_type: Exact or Inexact integration
-            method_type    : CG or DG
-            icase          : For the initial condition type(icase = 1, for gaussian or 2, for sine)
-            u              : velocity
-            Courant_max    : CFL
-            Tfinal         : Ending time for the computation
-            time_step      : function that compute the time step and number of time( double time per element)
-    Outputs:
-    --------
-    
-            qe         : Exact solution
-            q          : Numerical solution
-            coord      : All grid points
-            intma      : Intma(CG/DG)
-    '''
-    
-    # Compute Interpolation and Integration Points
-    
-    t0 = perf_counter()
-    
-    xgl = Lobatto_p(N)    # Compute Lobatto points
-    xnq = Lobatto_p(Q)   # Compute Lobatto points
-    wnq = weight(Q)      # Compute the weight values
-
-    # Lagrange basis and its derivatives
-    l_basis, dl_basis = LagrangeBasis_deriv(N,Q,xgl, xnq)
-
-    # 2D grid 
-    bound_index = zeros(4)
-    bound_index[0] = y_boundary[0]
-    bound_index[2] = y_boundary[1]
-    
-    bound_index[1] = x_boundary[1]
-    bound_index[3] = x_boundary[0]
-    
-    coord, intma, bsido,face = grid_2D(Np, Ne, Nbound, Nelx, Nely, N, Q, xgl, ax, bx,ay,by,bound_index)
-    #print(intma)
-    # metrics terms
-    ksi_x,ksi_y,eta_x,eta_y,jac = metrics(coord,intma,l_basis,dl_basis,wnq,Ne,N,Q)
-    
-    iside,psideh = create_side(intma,face,Np,Ne,Nbound,Nside,N)
-    
-    psideh, imapl, imapr = create_face(iside,intma,Nside,N)
-    
-    #print(psideh)
-    # Compute the normal vectors and face jacobian
-    nx,ny,jac_side = compute_normals(psideh,intma,coord,Nside,N,Q,wnq,l_basis,dl_basis)
-
-    # Compute the mass matrix
-    Mmatrix = create_Mmatrix(jac,intma,l_basis,Np,Ne,N,Q)
-    
-    # Compute the Laplacian matrix
-    Lmatrix = create_Lmatrix(intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,N,Q)
-    
-    u = ones(Np)*0.1
-    v = ones(Np)*0.1
-    
-    AD = Dmatrix_2D(u,v,intma,jac,ksi_x,ksi_y,eta_x,eta_y,l_basis,dl_basis,Np,Ne,N,Q)
-        
-    # RHS matrix for RK method
-    
-    #Lmatrix = apply_Dirichlet_BC_matrix(Lmatrix,intma,imapl,psideh,Np,N,Q,Nside)
-    #Mmatrix = apply_Dirichlet_BC_matrix(Mmatrix,intma,imapl,psideh,Np,N,Q,Nside)
-             
-    # Inverse mass matrix
-    Mmatrix_inv = linalg.inv(Mmatrix)
-    Mmatrix_inv = csr_matrix(Mmatrix_inv)
-    # space step size
-    dx = coord[1,0] - coord[0,0]
-    
-    # time stuff
-    u = 1
-    #Nx = Nelx*N + 1
-    dx = (bx-ax)/(Np)
-    dt_est = cfl*dx**2/abs(u)
-    dt_est = 1e-2
-    ntime = int(floor(Tfinal/dt_est)+1)
-    dt = Tfinal/ntime
-
-    print("N = {:d}, nel = {:d}, Np = {}".format(N,Ne,Np))
-    print("\tdt = {:.4e}".format(dt))
-    print("\tNumber of time steps = {}".format(ntime))
-    
-    
-    # Time integration coefficients
-    alpha,beta, stages = IRK_coefficients(kstages)
-    
-    
-    # Compute Initial Solutions
-    time = 0
-    Te = ones(Np)*cst1
-    Se = ones(Np)*cst2
-    # Integretation method coefficients
-    alpha,beta, stages = IRK_coefficients(kstages)
-    
-    # Preparation for the time integration
-    
-    # Implicit Range Kutta method stuff
-    DhmatrixT = c1*Lmatrix #+ AD
-    DhmatrixS = c2*Lmatrix #+ AD  
-    
-    AmatrixT = Mmatrix - dt*alpha[stages-1,stages-1]*DhmatrixT
-    AmatrixT_inv = linalg.inv(AmatrixT)
-    
-    AmatrixS = Mmatrix - dt*alpha[stages-1,stages-1]*DhmatrixS
-    AmatrixS_inv = linalg.inv(AmatrixS)
-    
-    
-    
-    # Time integration
-    
-    #elif(time_method == "BDF3"):
-
-    # Initialize for temperature
-    # Initialize for temperature
-    
-    T0 = Te
-    T = Te
-    # Initialize for salinity
-    S0 = Se
-    S = Se
-
-    QT = zeros((Np,stages))
-    RT = zeros((Np,stages))
-
-    QS = zeros((Np,stages))
-    RS = zeros((Np,stages))
-    
-    T21 = zeros((Np,2))
-    S21 = zeros((Np,2))
-
-    #ntime = 1
-    tn = 0
-    for itime in range(1,3):
-
-        time = time + dt
-        
-        Tw = T[5]
-        Sw = S[5]
-            
-        L = coefF(Tw, gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Sw)
-        #print(L)
-        
-        # compute salinity at the boundary
-        SB = SaltB(Kf,L,Mf,Sw)
-        #print(SB)
-        # Compute melt rate
-        V = Meltrate(Sw, SB, gammaS)
-
-        QT[:,0] = T
-        RT[:,0] = DhmatrixT@QT[:,0]
-        QS[:,0] = S
-        RS[:,0] = DhmatrixS@QS[:,0]
-
-        for i in range(1,stages):
-            RT_sum = zeros(Np)
-            RS_sum = zeros(Np)
-
-            for j in range(i):
-                RT_sum += alpha[i,j]*RT[:,j]
-                RS_sum += alpha[i,j]*RS[:,j]
-
-
-            RRT = Mmatrix@QT[:,0] + dt*RT_sum
-            RRS = Mmatrix@QS[:,0] + dt*RS_sum
-
-            QT[:,i] = AmatrixT_inv@RRT
-            QS[:,i] = AmatrixS_inv@RRS
-
-            # Apply boundary conditions at the intermediate time step
-
-#             QT[:,i] = apply_ice_bc(nx,ny,Mmatrix_inv,QT[:,i],hT, c1, V, bcst1,hB, c2,SB,\
-#                                    bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,dt,"heat")
-#             QS[:,i] = apply_ice_bc(nx,ny,Mmatrix_inv,QS[:,i],hT, c1, V, bcst1,hB, c2,SB,\
-#                                    bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,dt,"salt")
-
-#             QT[:,i] = apply_ice_bc_new(Mmatrix_inv,QT[:,i],QS[:,i],hT, c1, bcst1,hB, c2,SB,bcst2,intma,\
-#                                   jac_side,imapl,psideh,Np,N,Q,Nside,dt,\
-#                      gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Kf, Mf, coefF,Meltrate,SaltB,"heat")
-        
-#             QS[:,i] = apply_ice_bc_new(Mmatrix_inv,QT[:,i],QS[:,i],hT, c1, bcst1,hB, c2,SB,\
-#                                   bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,dt,\
-#                      gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Kf, Mf, coefF,Meltrate,SaltB,"salt")
-
-#             QT[:,i] =  apply_Dirichlet_BC_vec1(QT[:,i],Te,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nelx,Nside,mixed)
-#             QS[:,i] =  apply_Dirichlet_BC_vec1(QS[:,i],Se,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nelx,Nside,mixed)
-
-            
-            RT[:,i] = DhmatrixT@QT[:,i]
-            RS[:,i] = DhmatrixS@QS[:,i]
-
-        RT_sum = zeros(Np)
-        RS_sum = zeros(Np)
-
-        for i in range(stages):
-            RT_sum += beta[i]*RT[:,i]
-            RS_sum += beta[i]*RS[:,i]
-
-        Tp = T + dt*Mmatrix_inv@RT_sum
-        Sp = S + dt*Mmatrix_inv@RS_sum
-
-        # Apply boundary conditions
-
-#         Tp = apply_ice_bc(nx,ny,Mmatrix_inv,Tp,hT, c1, V, bcst1,hB, c2,SB,\
-#                                    bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,dt,"heat")
-#         Sp = apply_ice_bc(nx,ny,Mmatrix_inv,Sp,hT, c1, V, bcst1,hB, c2,SB,\
-#                                    bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,dt,"salt")
-
-        
-
-        Tp = apply_ice_bc_new(Mmatrix_inv,Tp,Sp,hT, c1, bcst1,hB, c2,SB,\
-                              bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,dt,\
-                     gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Kf, Mf, coefF,Meltrate,SaltB,"heat")
-        
-        Sp = apply_ice_bc_new(Mmatrix_inv,Tp,Sp,hT, c1, bcst1,hB, c2,SB, bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,dt,\
-                     gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Kf, Mf, coefF,Meltrate,SaltB,"salt")
-        
-        Tp =  apply_Dirichlet_BC_vec1(Tp,Te,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nelx,Nside,mixed)
-        Sp =  apply_Dirichlet_BC_vec1(Sp,Se,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nelx,Nside,mixed)
-
-        # update the solution q
-        T = Tp 
-        
-        S = Sp 
-        #print(S)
-        T21[:,itime-1] = Tp
-        S21[:,itime-1] = Sp
-
-    # End of IRK time integration
-
-    AT = 11*Mmatrix - 6*dt*c1*Lmatrix
-    AS = 11*Mmatrix - 6*dt*c2*Lmatrix
-
-    AT_inv = linalg.inv(AT)
-    AS_inv = linalg.inv(AS)
-
-    RmatrixT = AT_inv@Mmatrix
-    RmatrixS = AS_inv@Mmatrix
-
-    #ntime = 0
-    T1 = T21[:,0]
-    T = T21[:,1]
-
-    S1 = S21[:,0]
-    S = S21[:,1]
-
-    for itime in range(3,ntime+1):
-
-        time = time + dt
-
-        # Temperature and salinity of the far filed
-        Tw = Tp[5]
-        Sw = Sp[5]
-        #print(Tw)
-        #print(Sw)
-        L = coefF(Tw, gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Sw)
-        #print(L)
-        # compute salinity at the boundary
-        SB = SaltB(Kf,L,Mf,Sw)
-
-        # Compute melt rate
-        V = Meltrate(Sw, SB, gammaS)
-
-        Tp = RmatrixT@(18*T - 9*T1 + 2*T0)
-        Sp = RmatrixS@(18*S - 9*S1 + 2*S0)
-
-        # Apply boundary conditions
-
-        #Tp = apply_ice_bc(nx,ny,AT_inv,Tp,hT, c1, V, bcst1,hB, c2,SB,\
-        #                           bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,6*dt,"heat")
-        #Sp = apply_ice_bc(nx,ny,AS_inv,Sp,hT, c1, V, bcst1,hB, c2,SB,\
-        #                           bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,6*dt,"salt")
-        
-        Tp = apply_ice_bc_new(Mmatrix_inv,Tp,Sp,hT, c1, bcst1,hB, c2,SB,\
-                              bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,6*dt,\
-                     gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Kf, Mf, coefF,Meltrate,SaltB,"heat")
-        
-        Sp = apply_ice_bc_new(Mmatrix_inv,Tp,Sp,hT, c1, bcst1,hB, c2,SB,\
-                              bcst2,intma,jac_side,imapl,psideh,Np,N,Q,Nside,6*dt,\
-                     gammaS,gammaT, cw, Li, ci, Ti, b, c, pb, a, Kf, Mf, coefF,Meltrate,SaltB,"salt")
-        
-        Tp =  apply_Dirichlet_BC_vec1(Tp,Te,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nelx,Nside,mixed)
-        Sp =  apply_Dirichlet_BC_vec1(Sp,Se,intma,jac_side,imapl,psideh,Np,N,Q,Ne,Nelx,Nside,mixed)
-        
-        
-
-        # Updates 
-        T0 = T1
-        T1 = T
-        T = Tp
-
-        S0 = S1
-        S1 = S
-        S = Sp
-            
-            
-    # End of time integration   
-                             
-    time_f = perf_counter() #- t_start        # End of the timing
-        
-    return S, T, coord, intma, time_f
-
