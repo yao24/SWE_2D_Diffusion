@@ -842,19 +842,20 @@ def compute_normals(psideh,intma,coord,Nside,N,Q,wnq,l_basis,dl_basis):
     return nx,ny,jac_side
 
 
-
+# Exact solution, source term and derivatives for Neumann BCs
 def exact_solution(coord,Np,icase):
 
     #Initialize
     
     gradq = zeros((Np,2))
     qe = zeros(Np)
+    
     #Generate Grid Points
+    x = coord[:,0]
+    y = coord[:,1]
+    
     if(icase == 1):
         
-        x = coord[:,0]
-        y = coord[:,1]
-
         qe = y*(1-y)*x**3
         fe = 6*x*y*(1-y) - 2*x**3
         gradq[:,0] = 3*y*(1-y)*x**2
@@ -862,34 +863,32 @@ def exact_solution(coord,Np,icase):
             
     elif(icase == 2):
         
-        x = coord[:,0]
-        y = coord[:,1]
-        
         qe = (1-x**2)*(2*y**3-3*y**2+1)
         fe = -2*(2*y**3-3*y**2+1) + 6*(1-x**2)*(2*y-1)
         gradq[:,0] = -2*x*(2*y**3-3*y**2+1)
         gradq[:,1] = (1-x**2)*(6*y**2-6*y)
         
     elif(icase == 3):
-        
-        x = coord[:,0]
-        y = coord[:,1]
+
         qe = sin(pi*x)*sin(pi*y)
         fe = -2*(pi**2)*sin(pi*x)*sin(pi*y)
-
         gradq[:,0] = pi*cos(pi*x)*sin(pi*y)
         gradq[:,1] = pi*sin(pi*x)*cos(pi*y)
         
     elif(icase == 4):
-        
-        x = coord[:,0]
-        y = coord[:,1]
+
         qe = sin(2*pi*x)
         fe = -4*(pi**2)*sin(2*pi*x)
-
         gradq[:,0] = 2*pi*cos(2*pi*x)
         gradq[:,1] = 0
-
+    
+    elif(icase == 5):
+        
+        qe = cos(pi*x)*cos(pi*y)
+        fe = -2*pi**2*cos(pi*x)*cos(pi*y)
+        gradq[:,0] = -pi*sin(pi*x)*cos(pi*y)
+        gradq[:,1] = -pi*cos(pi*x)*sin(pi*y)
+            
     return fe,qe,gradq
 
 def apply_Dirichlet_BC(Lmatrix,bsido,Nbound):
