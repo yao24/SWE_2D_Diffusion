@@ -17,8 +17,7 @@ close all;
 tic
 
 %Input Data
-plot_matrices = 0;
-plot_solution = 0;
+plot_conv = 0;
 integration_type = 1; %=1 is inexact and =2 is exact
 space_method = 'CG'; 
 
@@ -31,16 +30,18 @@ icase = 3; % 1 = 2D with homogeneous BCs in x and y;
 ax = -1;
 bx = 1;
 
-nopp = [1 2 3 4];
+nopp = [1,2];
 Ne = [8 16 24 32];
 
-for inop = 1:4
+%fileID = fopen('matlab_convergence.dat','w');
+
+for inop = 1:size(nopp,2)
     nop = nopp(inop);
     ngl = nop + 1;
 
-
+fileID = fopen(sprintf('conv_nop%d_4.dat',nop),'w');
 icount = 0;
-for id = 1:4
+for id = 1:size(Ne,2)
     nel = Ne(id);
     icount = icount + 1;
     t0 = cputime;
@@ -116,55 +117,63 @@ for id = 1:4
     q0 = Lmatrix\Rvector; 
 
     %Compute Norm
-    top=0;
-    bot=0;
-    for i=1:npoin
-        top=top + (q0(i)-qe(i))^2;
-        bot=bot + qe(i)^2;
-    end %e
-    l2_norm=sqrt( top/bot + eps );
+    error = abs(q0-qe);
+    l1_norm = sum(error);
+    l2_norm = sqrt(sum(error.^2)/sum(qe.^2));
+    inf_norm = max(error);
+    
+    fprintf(fileID,'%d %12.4e %12.4e %12.4e\n', npoin,l1_norm,l2_norm,inf_norm);
+    
     l2_norm_total(icount,inop)=l2_norm;
     npoin_total(icount,inop)=nel;
     t1=cputime;
     dt=t1-t0;
+    
+    Error(:,inop) = [l1_norm l2_norm inf_norm];
+    
 
     disp([' nop  = ' num2str(nop),' nel = ' num2str(nel),' cpu = ' num2str(dt) ]);
 
 end %nel
+
+    
 end %inop
 
+fclose(fileID);
 
-h=figure;
-figure(h);
-for inop = 1:4
-    switch inop
-    case (1)
-        p1 = polyfit(log(npoin_total(:,inop)),log(l2_norm_total(:,inop)),1);
-        p(1) = p1(1);
-        plot_handle=loglog(npoin_total(:,inop),l2_norm_total(:,inop),'r-*');
-    case (2)
-        p2 = polyfit(log(npoin_total(:,inop)),log(l2_norm_total(:,inop)),1);
-        p(2) = p2(1);
-        plot_handle=loglog(npoin_total(:,inop),l2_norm_total(:,inop),'b-o');
-    case (3)
-        p3 = polyfit(log(npoin_total(:,inop)),log(l2_norm_total(:,inop)),1);
-        p(3) = p3(1);
-        plot_handle=loglog(npoin_total(:,inop),l2_norm_total(:,inop),'g-x');
-    case (4)
-        p4 = polyfit(log(npoin_total(:,inop)),log(l2_norm_total(:,inop)),1);
-        p(4) = p4(1);
-        plot_handle=loglog(npoin_total(:,inop),l2_norm_total(:,inop),'k-+');
+if(plot_conv)
+    h=figure;
+    figure(h);
+    for inop = 1:3
+        switch inop
+        case (1)
+            p1 = polyfit(log(npoin_total(:,inop)),log(l2_norm_total(:,inop)),1);
+            p(1) = p1(1);
+            plot_handle=loglog(npoin_total(:,inop),l2_norm_total(:,inop),'r-*');
+        case (2)
+            p2 = polyfit(log(npoin_total(:,inop)),log(l2_norm_total(:,inop)),1);
+            p(2) = p2(1);
+            plot_handle=loglog(npoin_total(:,inop),l2_norm_total(:,inop),'b-o');
+        case (3)
+            p3 = polyfit(log(npoin_total(:,inop)),log(l2_norm_total(:,inop)),1);
+            p(3) = p3(1);
+            plot_handle=loglog(npoin_total(:,inop),l2_norm_total(:,inop),'g-x');
+    %     case (4)
+    %         p4 = polyfit(log(npoin_total(:,inop)),log(l2_norm_total(:,inop)),1);
+    %         p(4) = p4(1);
+    %         plot_handle=loglog(npoin_total(:,inop),l2_norm_total(:,inop),'k-+');
 
-end %switch
-set(plot_handle,'LineWidth',2);
-hold on
+    end %switch
+    set(plot_handle,'LineWidth',2);
+    hold on
+    end
+
+    title([main_text],'FontSize',18);
+    xlabel('Number of elements','FontSize',18);
+    ylabel('Normalized L^2 Error','FontSize',18);
+    legend(sprintf('N = 3, rate = %0.3f',p(1)),sprintf('N = 4, rate = %0.3f',p(2)),...
+        sprintf('N = 5, rate = %0.3f',p(3)));
+    set(gca, 'FontSize', 18);
 end
-
-title([main_text],'FontSize',18);
-xlabel('Number of elements','FontSize',18);
-ylabel('Normalized L^2 Error','FontSize',18);
-legend(sprintf('N = 1, rate = %0.3f',p(1)),sprintf('N = 2, rate = %0.3f',p(2)),...
-    sprintf('N = 3, rate = %0.3f',p(3)),sprintf('N = 4, rate = %0.3f',p(4)));
-set(gca, 'FontSize', 18);
 
 toc

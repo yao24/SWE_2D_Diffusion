@@ -1583,6 +1583,8 @@ def diffusion_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,
         A_inv = linalg.inv(A)
         Rmatrix = A_inv@Mmatrix
         
+        q = qp
+        
         #ntime = 0
         for itime in range(2,ntime+1):
             

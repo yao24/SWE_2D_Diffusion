@@ -22,7 +22,7 @@ space_method = 'CG';
 
 bc_type = 4; % 5 = dirichlet or 4 = neumann
 
-icase = 3; % 1 = 2D with homogeneous BCs in x and y; 
+icase = 1; % 1 = 2D with homogeneous BCs in x and y; 
            % 2 = 1D with homogeneous BCs along x=-1/+1 and non-homogeneous along y=-1/+1 .
            % 3 = 2D with non-homogeneous BCs along x and y.
            
@@ -103,13 +103,12 @@ q0 = Lmatrix\Rvector;
 
 
 %Compute Norm
-top = 0;
-bot = 0;
-for i = 1:npoin
-    top = top + (q0(i)-qe(i))^2;
-    bot = bot + qe(i)^2;
-end %e
-l2_norm = sqrt(top/bot );
+
+error = abs(q0-qe);
+l1_norm = sum(error);
+l2_norm = sqrt(sum(error.^2)/sum(qe.^2));
+inf_norm = max(error);
+
 
 %Plot Solution
 if (plot_solution == 1)

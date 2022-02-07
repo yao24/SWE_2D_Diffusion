@@ -1000,12 +1000,42 @@ def apply_Neumann_BC(q,nx,ny,intma,jac_side,l_basis,imapl,psideh,gradq,Np,N,Q,Ns
                 ip = int(intma[el,il,jl])
 
                 ndp = nxl*gradq[ip,0] + nyl*gradq[ip,1]
+                
                 B[ip] += wq*ndp
+                
+                #print(ndp)
                 
     q -= B
         
     return q
 
+def extract_ice_bc(qp,intma,imapl,psideh,Np,N,Q,Nside):
+    
+    bc_ice1 = zeros(Np)
+    
+    for n in range(Nside):
+        
+        el = int(psideh[n,2])
+        iloc = int(psideh[n,0])
+        er = int(psideh[n,3])
+        
+        flag = 0
+        
+        if(er < 0):
+            flag = er%-10
+        
+        if(flag == -7):
+            for i in range(Q+1):
+
+                il = int(imapl[i,iloc,0])
+                jl = int(imapl[i,iloc,1])
+                ip = int(intma[el,il,jl])
+
+                bc_ice1[ip] = qp[ip]
+                
+    bc_ice = bc_ice1[where(bc_ice1!=0)]
+                
+    return bc_ice
 
 
 def poisson_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,icase,x_boundary,y_boundary):
@@ -1082,6 +1112,8 @@ def poisson_solver(N,Q,Ne, Np, ax, bx,ay,by, Nelx, Nely, Nx, Ny, Nbound,Nside,ic
         
     # Solve for the numerical soultion
     qp = linalg.solve(Lmatrix,Rhs)
+    
+    #bc = extract_ice_bc(qp,intma,imapl,psideh,Np,N,Q,Nside)
             
     
     return qe, qp, coord, intma

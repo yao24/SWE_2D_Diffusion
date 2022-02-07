@@ -1248,6 +1248,34 @@ def apply_Dirichlet_BC_matrix(Matrix,intma,imapl,psideh,Np,N,Q,Nside):
                 
     return Matrix
 
+def extract_ice_bc(qp,intma,imapl,psideh,Np,N,Q,Nside):
+    
+    bc_ice1 = zeros(Np)
+    
+    for n in range(Nside):
+        
+        el = int(psideh[n,2])
+        iloc = int(psideh[n,0])
+        er = int(psideh[n,3])
+        
+        flag = 0
+        
+        if(er < 0):
+            flag = er%-10
+        
+        if(flag == -7):
+            for i in range(Q+1):
+
+                il = int(imapl[i,iloc,0])
+                jl = int(imapl[i,iloc,1])
+                ip = int(intma[el,il,jl])
+
+                bc_ice1[ip] = qp[ip]
+                
+    bc_ice = bc_ice1[where(bc_ice1!=0)]
+                
+    return bc_ice
+
 def apply_Neumann_BC(Mmatrix_inv,q,nx,ny,intma,jac_side,imapl,psideh,gradq,Np,N,Q,Nside,dt):
     
     B = zeros(Np)
@@ -2268,6 +2296,8 @@ def ice_ocean_Solver(N,Q,Ne, Np, ax, bx,ay,by, integration_type, hT, hB, cst1, c
     # End of time integration   
                              
     time_f = perf_counter() #- t_start        # End of the timing
+    
+    bc_ice = extract_ice_bc(T,intma,imapl,psideh,Np,N,Q,Nside)
         
-    return S, T, coord, intma, time_f
+    return S, T, coord, intma, time_f, bc_ice
 
